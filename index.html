@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador del carrito en pista inclinada</title>
+<style>
+:root{--bg:#f2f5f9;--card:#ffffff;--ink:#14213d;--mut:#586274;--line:#dbe2ec;--acc:#e2571e;--ghost:#3f6fd1;--ok:#1d7a55;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1626;--card:#16213a;--ink:#eef1f7;--mut:#a3adc2;--line:#2a3857;--acc:#ff8a52;--ghost:#8fb0ff;--ok:#6fd1a5}}
+:root[data-theme="dark"]{--bg:#0e1626;--card:#16213a;--ink:#eef1f7;--mut:#a3adc2;--line:#2a3857;--acc:#ff8a52;--ghost:#8fb0ff;--ok:#6fd1a5}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;line-height:1.45}
+main{max-width:1040px;margin:0 auto;padding:24px 16px 48px}
+h1{font-family:Georgia,serif;font-size:clamp(26px,4vw,40px);line-height:1.15;margin:0 0 8px}
+.sub{color:var(--mut);margin:0 0 20px;max-width:70ch}
+.badge{display:inline-block;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:14px;color:var(--mut);margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.hero{display:grid;grid-template-columns:1fr 280px;gap:16px}
+@media(max-width:760px){.hero{grid-template-columns:1fr}}
+canvas{width:100%;height:auto;display:block}
+.bar{margin:10px 0}
+.bar b{display:flex;justify-content:space-between;font-size:15px;margin-bottom:4px}
+.track{height:18px;background:var(--line);border-radius:9px;overflow:hidden}
+.fill{height:100%;width:0;border-radius:9px}
+.ctrl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin:16px 0}
+.ctrl label{display:block;font-size:15px;color:var(--mut)}
+.ctrl output{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--acc)}
+input[type=number]{width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:16px}
+button{font:inherit;font-weight:700;padding:10px 20px;border-radius:10px;border:1px solid var(--acc);cursor:pointer;margin-right:8px}
+button:focus-visible,input:focus-visible{outline:3px solid var(--ghost);outline-offset:2px}
+#go{background:var(--acc);color:#14213d}#rs{background:transparent;color:var(--ink)}
+.res{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
+.res div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.res strong{display:block;font-size:26px;font-variant-numeric:tabular-nums}
+.res span{font-size:14px;color:var(--mut)}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+th{font-size:14px;color:var(--mut)}
+tr.cur td{background:var(--bg);font-weight:700}
+.note{font-size:14px;color:var(--mut);max-width:80ch}
+#msg{color:var(--acc);font-weight:700;min-height:1.4em;margin:8px 0 0}
+</style>
+</head>
+<body>
+<main>
+<span class="badge">Simulación del modelo, no son datos medidos</span>
+<h1>¿Cuánta energía se pierde en la bajada?</h1>
+<p class="sub">El carrito naranja baja con fricción y el azul transparente baja en el modelo ideal. Cambia la altura y la fricción, suelta el carrito y compara.</p>
+
+<div class="hero">
+<div class="card"><canvas id="cv" width="1000" height="380" role="img" aria-label="Carrito con fricción y carrito ideal descendiendo por una pista inclinada"></canvas></div>
+<div class="card">
+<div class="bar"><b><span>Energía potencial</span><span id="b1t"></span></b><div class="track"><div class="fill" id="b1" style="background:var(--ghost)"></div></div></div>
+<div class="bar"><b><span>Energía cinética</span><span id="b2t"></span></b><div class="track"><div class="fill" id="b2" style="background:var(--ok)"></div></div></div>
+<div class="bar"><b><span>Energía disipada</span><span id="b3t"></span></b><div class="track"><div class="fill" id="b3" style="background:var(--acc)"></div></div></div>
+<p class="note" id="clk" style="margin:12px 0 0">Tiempo: 0,00 s</p>
+</div>
+</div>
+
+<div class="card ctrl" style="margin-top:16px">
+<div><label for="h">Altura h: <output id="ho"></output></label><input id="h" type="range" min="0.05" max="0.40" step="0.01" value="0.20"></div>
+<div><label for="mu">Fricción efectiva μ: <output id="muo"></output></label><input id="mu" type="range" min="0" max="0.15" step="0.005" value="0.059"></div>
+<div><label for="m">Masa del carrito (kg)</label><input id="m" type="number" min="0.01" step="0.005" value="0.050"></div>
+<div><label for="L">Longitud de la pista (m)</label><input id="L" type="number" min="0.5" step="0.05" value="1.20"></div>
+</div>
+<button id="go">Soltar carrito</button><button id="rs">Reiniciar</button>
+<p id="msg" role="status"></p>
+
+<div class="res" id="res"></div>
+
+<div class="card">
+<p style="margin:0 0 8px;font-weight:700">Misma pista y misma fricción en cinco alturas</p>
+<div class="wrap"><table id="tb"></table></div>
+</div>
+<p class="note" style="margin-top:16px">Modelo: a = g(sen θ − μ cos θ), con sen θ = h / L y g = 9,81 m/s². El valor μ agrupa fricción de rodadura, aire y rotación de las ruedas. Para el proyecto, reemplaza μ por el coeficiente obtenido con datos reales (μef = f / N).</p>
+</main>
+<script>
+const $=id=>document.getElementById(id),g=9.81;
+const fm=(n,d)=>n.toFixed(d).replace('.',',');
+const st={t:0,run:false,last:0};
+function P(){return{h:+$('h').value,mu:+$('mu').value,m:Math.max(0.01,+$('m').value||0.05),L:Math.max(0.5,+$('L').value||1.2)}}
+function calc(h,mu,m,L){const s=Math.min(h/L,0.99),c=Math.sqrt(1-s*s),a=g*(s-mu*c),a0=g*s,ok=a>1e-9;
+const t=ok?Math.sqrt(2*L/a):Infinity,v=ok?2*L/t:0,Ep=m*g*h,Ec=.5*m*v*v;
+return{s,a,a0,ok,t,v,Ep,Ec,Ed:Ep-Ec,pct:100*(Ep-Ec)/Ep,vi:Math.sqrt(2*g*h),f:(Ep-Ec)/L,th:Math.asin(s)*180/Math.PI,t0:Math.sqrt(2*L/a0)}}
+function pos(){const p=P(),r=calc(p.h,p.mu,p.m,p.L),t=st.t;
+return{p,r,sR:r.ok?Math.min(p.L,.5*r.a*t*t):0,sI:Math.min(p.L,.5*r.a0*t*t)}}
+function cart(x,px,py,th,col,al){x.save();x.globalAlpha=al;x.translate(px,py);x.rotate(th);x.fillStyle=col;x.fillRect(-32,-36,64,26);x.fillStyle='#10151f';[-19,19].forEach(d=>{x.beginPath();x.arc(d,-9,9,0,7);x.fill()});x.restore()}
+function draw(){const cv=$('cv'),x=cv.getContext('2d'),W=cv.width,H=cv.height,cs=getComputedStyle(document.documentElement),V=k=>cs.getPropertyValue(k).trim();
+const {p,r,sR,sI}=pos(),th=Math.asin(r.s),Lp=760,bx=W-50,by=H-50,tx=bx-Lp*Math.cos(th),ty=by-Lp*Math.sin(th);
+x.clearRect(0,0,W,H);
+x.fillStyle=V('--line');x.beginPath();x.moveTo(tx,ty);x.lineTo(bx,by);x.lineTo(tx,by);x.closePath();x.fill();
+x.strokeStyle=V('--mut');x.lineWidth=3;x.beginPath();x.moveTo(20,by);x.lineTo(W-20,by);x.stroke();
+x.lineWidth=2;x.setLineDash([7,6]);x.beginPath();x.moveTo(tx,ty);x.lineTo(tx,by);x.stroke();x.setLineDash([]);
+x.strokeStyle=V('--ink');x.lineWidth=6;x.beginPath();x.moveTo(tx,ty);x.lineTo(bx,by);x.stroke();
+x.fillStyle=V('--ink');x.font='22px system-ui';x.textAlign='right';x.fillText('h = '+fm(p.h*100,0)+' cm',tx-12,(ty+by)/2);
+x.textAlign='left';x.fillText('θ = '+fm(r.th,1)+'°',bx-230,by-14);
+const at=s=>[tx+(bx-tx)*s/p.L,ty+(by-ty)*s/p.L];
+cart(x,...at(sI),th,V('--ghost'),.45);cart(x,...at(sR),th,V('--acc'),1);
+x.font='20px system-ui';x.fillStyle=V('--acc');x.fillText('Con fricción',24,34);x.fillStyle=V('--ghost');x.fillText('Ideal, sin fricción',24,64)}
+function bars(){const {p,r,sR}=pos(),v=r.ok?r.a*Math.min(st.t,r.t):0,Ec=.5*p.m*v*v,Ep=r.Ep*(1-sR/p.L),Ed=Math.max(0,r.Ep-Ep-Ec);
+[[Ep,'b1'],[Ec,'b2'],[Ed,'b3']].forEach(([e,i])=>{$(i).style.width=(100*e/r.Ep).toFixed(1)+'%';$(i+'t').textContent=fm(e,4)+' J'});
+$('clk').textContent='Tiempo: '+fm(st.t,2)+' s'}
+function tbl(){const p=P();let h='<tr><th>h (m)</th><th>θ (°)</th><th>t (s)</th><th>v (m/s)</th><th>Ec (J)</th><th>Edisip (J)</th><th>% Edisip</th></tr>';
+[.10,.15,.20,.25,.30].forEach(H=>{const r=calc(H,p.mu,p.m,p.L),cur=Math.abs(H-p.h)<.004?' class="cur"':'';
+h+=r.ok?`<tr${cur}><td>${fm(H,2)}</td><td>${fm(r.th,1)}</td><td>${fm(r.t,2)}</td><td>${fm(r.v,2)}</td><td>${fm(r.Ec,4)}</td><td>${fm(r.Ed,4)}</td><td>${fm(r.pct,1)} %</td></tr>`:`<tr${cur}><td>${fm(H,2)}</td><td>${fm(r.th,1)}</td><td colspan="5">No se mueve</td></tr>`});
+$('tb').innerHTML=h}
+function upd(){st.t=0;st.run=false;const p=P(),r=calc(p.h,p.mu,p.m,p.L);
+$('ho').textContent=fm(p.h*100,0)+' cm';$('muo').textContent=fm(p.mu,3);
+$('msg').textContent=r.ok?'':'El carrito no se mueve: la fricción supera la componente del peso a lo largo de la pista. Sube la altura o baja μ.';
+const c=[[fm(r.t0*0+ (r.ok?r.t:0),2)+' s','Tiempo de descenso'],[fm(r.v,2)+' m/s','Velocidad real'],[fm(r.vi,2)+' m/s','Velocidad ideal'],[fm(r.Ep,4)+' J','Energía potencial'],[fm(r.Ec,4)+' J','Energía cinética final'],[fm(r.pct,1)+' %','Energía disipada'],[fm(r.f,4)+' N','Fricción promedio'],[fm(r.ok?100*(r.vi-r.v)/r.vi:100,1)+' %','Velocidad menor que la ideal']];
+$('res').innerHTML=c.map(([a,b])=>`<div><strong>${a}</strong><span>${b}</span></div>`).join('');
+tbl();draw();bars()}
+function tick(ts){if(!st.run)return;st.t+=(ts-st.last)/1000*.6;st.last=ts;const r=pos().r,end=Math.max(r.ok?r.t:0,r.t0)+.15;
+if(st.t>=end){st.t=end;st.run=false}draw();bars();if(st.run)requestAnimationFrame(tick)}
+$('go').onclick=()=>{const r=pos().r;if(st.t>0){const s=st.t;upd()}st.run=true;st.last=performance.now();requestAnimationFrame(tick)};
+$('rs').onclick=upd;
+['h','mu','m','L'].forEach(i=>$(i).addEventListener('input',upd));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+upd();
+</script>
+</body>
+</html>
